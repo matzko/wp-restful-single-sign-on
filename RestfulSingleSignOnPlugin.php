@@ -103,8 +103,8 @@ if (! class_exists('RestfulSingleSignOnPlugin')) {
 		{
 			add_submenu_page(
 				'options-general.php',
-				__('Sign-On Settings', 'restful-single-sign-on'),
-				__('Sign-On Settings', 'restful-single-sign-on'),
+				__('Single Sign-On Settings', 'restful-single-sign-on'),
+				__('Single Sign-On Settings', 'restful-single-sign-on'),
 				'manage_options',
 				'restful-single-sign-on-settings',
 				array($this, 'print_settings')
