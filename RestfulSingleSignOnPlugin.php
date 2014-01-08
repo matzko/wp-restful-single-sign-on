@@ -1,7 +1,7 @@
 <?php
 /*
 Plugin Name: RESTful Single Sign-On
-Plugin URI:
+Plugin URI: https://github.com/matzko/wp-restful-single-sign-on
 Description: Single Sign-On (SSO) with a RESTful identity provider. 
 Author: Austin Matzko
 Author URI: https://austinmatzko.com
