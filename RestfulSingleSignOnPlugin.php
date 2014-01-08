@@ -87,6 +87,14 @@ if (! class_exists('RestfulSingleSignOnPlugin')) {
 				'restful-single-signon-auth-settings-section-id'
 			);
 
+			add_settings_field(
+				'restful-single-signon-auth-error-property',
+				__( 'Response Error Property', 'restful-single-sign-on'),
+				array($this, 'print_setting_auth_error_property'),
+				'restful-single-signon-auth-settings-page',
+				'restful-single-signon-auth-settings-section-id'
+			);
+
 			register_setting('restful-single-signon-auth-options-group', 'restful-single-signon-auth-endpoint');
 			register_setting('restful-single-signon-auth-options-group', 'restful-single-signon-auth-resource');
 			register_setting('restful-single-signon-auth-options-group', 'restful-single-signon-auth-resource-username');
@@ -94,6 +102,7 @@ if (! class_exists('RestfulSingleSignOnPlugin')) {
 			register_setting('restful-single-signon-auth-options-group', 'restful-single-signon-auth-resource-email');
 			register_setting('restful-single-signon-auth-options-group', 'restful-single-signon-auth-resource-first_name');
 			register_setting('restful-single-signon-auth-options-group', 'restful-single-signon-auth-resource-last_name');
+			register_setting('restful-single-signon-auth-options-group', 'restful-single-signon-auth-error-property');
 		}
 
 		/**
@@ -210,6 +219,20 @@ if (! class_exists('RestfulSingleSignOnPlugin')) {
 		}
 
 		/**
+		 * Print the markup for the SSO auth error response property.
+		 */
+		public function print_setting_auth_error_property()
+		{
+			$setting = get_option('restful-single-signon-auth-error-property');
+			?>
+			<label>
+				<input type="text" name="restful-single-signon-auth-error-property" value="<?php echo esc_attr( $setting ); ?>" />
+				<span><?php printf(__('The response\'s error property, which is typically something like %s', 'restful-single-sign-on' ), '<code>error</code>') ?></span>
+			</label>
+			<?php
+		}
+
+		/**
 		 * Print the settings section.
 		 */
 		public function print_settings_section()
@@ -243,6 +266,10 @@ if (! class_exists('RestfulSingleSignOnPlugin')) {
 				&& (!empty($password))
 			) {
 				$db_user = get_user_by('login', $username);
+				$error_property = get_option('restful-single-signon-auth-error-property');
+				$first_name_property = get_option('restful-single-signon-auth-resource-first_name');
+				$last_name_property = get_option('restful-single-signon-auth-resource-last_name');
+				$email_property = get_option('restful-single-signon-auth-resource-email');
 
 				// Already a corresponding WordPress user
 				if ($db_user instanceof WP_User) {
@@ -251,7 +278,7 @@ if (! class_exists('RestfulSingleSignOnPlugin')) {
 						// This indicates that the password has been correctly submitted
 						// but is different from the WordPress password, so we need to update 
 						// the WP password
-						if ($data['is_valid']) {
+						if (empty($data[$error_property])) {
 							wp_set_password($password, $db_user->ID);
 							$user = $db_user;
 						}
@@ -259,11 +286,11 @@ if (! class_exists('RestfulSingleSignOnPlugin')) {
 
 				} else {
 					$data = $this->get_userdata_from_sso_credentials($username, $password);
-					if ($data['is_valid']) {
+					if (empty($data[$error_property])) {
 						// Let's create a user in the WordPress system corresponding to the user.
-						$user_id = wp_create_user($username, $password, $data['email']);
-						update_user_meta($user_id, 'first_name', $data['first_name']);
-						update_user_meta($user_id, 'last_name', $data['last_name']);
+						$user_id = wp_create_user($username, $password, $data[$email_property]);
+						update_user_meta($user_id, 'first_name', $data[$first_name_property]);
+						update_user_meta($user_id, 'last_name', $data[$last_name_property]);
 						update_user_meta($user_id, 'restful_sso_user', true);
 
 						$user = get_user_by('id', $user_id);
@@ -285,15 +312,18 @@ if (! class_exists('RestfulSingleSignOnPlugin')) {
 		{
 			$data = null;
 			$endpoint = get_option('restful-single-signon-auth-endpoint');
+			$resource_name = get_option('restful-single-signon-auth-resource');
+			$resource_username = get_option('restful-single-signon-auth-resource-username');
+			$resource_password = get_option('restful-single-signon-auth-resource-password');
 			if (!empty($endpoint)) {
 				$result = wp_remote_post(
 					$endpoint, 
 					array(
 						'headers' => array('Accept' => 'application/json', 'Content-type' => 'application/json'),
 						'body' => json_encode(array(
-							'user' => array(
-								'email' => $username,
-								'password' => $password,
+							$resource_name => array(
+								$resource_username => $username,
+								$resource_password => $password,
 							),
 						)),
 					)
