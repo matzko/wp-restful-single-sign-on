@@ -27,6 +27,7 @@ if (! class_exists('RestfulSingleSignOnPlugin')) {
 			add_action('admin_menu', array($this, 'event_admin_menu'));
 			add_filter('allow_password_reset', array($this,'can_user_reset_password'), 30, 2);
 			add_filter('authenticate', array($this, 'wp_authenticate_username_password'), 25, 3);
+			add_filter('show_password_fields', array($this,'can_user_change_password'), 30, 2);
 		}
 
 		/**
@@ -388,6 +389,24 @@ if (! class_exists('RestfulSingleSignOnPlugin')) {
 						}
 					}
 				}
+			}
+			return $allowed;
+		}
+
+		/**
+		 * Determine whether the user can see the change password fields in the user admin,
+		 * which should not happen for users who are managed by the RESTful API.
+		 *
+		 * @param boolean $allowed Whether WordPress has determined thus far that the user can change the password.
+		 * @param WP_User $user    The user in question.
+		 *
+		 * @return boolean Whether the user can see the profile change password fields.
+		 */
+		public function can_user_change_password($allowed = true, $user = null)
+		{
+			if ($user instanceof WP_User) {
+				$is_restful_user = (bool) get_user_meta($user->ID, 'restful_sso_user');
+				$allowed = ! $is_restful_user;
 			}
 			return $allowed;
 		}
