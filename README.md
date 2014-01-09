@@ -9,7 +9,7 @@ Devise no longer [responds to JSON out of the box](https://github.com/plataforma
 So if you enable JSON responses, **make sure** that your resource exposes only the properties it should (more info below).
 
 #### Enabling Devise JSON responses
-in `config/application.rb`add the following:
+in `config/application.rb` add the following:
 ``` ruby
 config.to_prepare do
   DeviseController.respond_to :html, :json
