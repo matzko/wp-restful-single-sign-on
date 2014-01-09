@@ -12,6 +12,15 @@ Text Domain: restful-single-sign-on
 if (! class_exists('RestfulSingleSignOnPlugin')) {
 	class RestfulSingleSignOnPlugin
 	{
+		/**
+		 * The authentication interface
+		 *
+		 * @var RestfulSingleSignOn_Api_AuthInterface
+		 */
+		protected $_auth_interface;
+
+		protected $_backup_mailer;
+		
 		public function __construct()
 		{
 			add_action('admin_init', array($this, 'event_admin_init'));
@@ -19,8 +28,30 @@ if (! class_exists('RestfulSingleSignOnPlugin')) {
 			add_filter('allow_password_reset', array($this,'can_user_reset_password'), 30, 2);
 			add_filter('authenticate', array($this, 'wp_authenticate_username_password'), 25, 3);
 		}
-		
-		protected $_backup_mailer;
+
+		/**
+		 * Get the authentication interface.
+		 *
+		 * @return RestfulSingleSignOn_Api_AuthInterface
+		 */
+		protected function _getAuthInterface()
+		{
+			if (empty($this->_auth_interface)) {
+				$interface = new RestfulSingleSignOn_Api_Rest(
+					get_option('restful-single-signon-auth-endpoint'),
+					get_option('restful-single-signon-auth-password-reset-endpoint'),
+					get_option('restful-single-signon-auth-resource'),
+					get_option('restful-single-signon-auth-resource-username'),
+					get_option('restful-single-signon-auth-resource-password'),
+					get_option('restful-single-signon-auth-resource-email'),
+					get_option('restful-single-signon-auth-resource-first_name'),
+					get_option('restful-single-signon-auth-resource-last_name'),
+					get_option('restful-single-signon-auth-error-property')
+				);
+				$this->_auth_interface = apply_filters('restful_single_sign_on_auth_interface', $interface);
+			}
+			return $this->_auth_interface;
+		}
 
 		/**
 		 * Callback for the WordPress admin_init action.
@@ -300,21 +331,15 @@ if (! class_exists('RestfulSingleSignOnPlugin')) {
 				// Already a corresponding WordPress user
 				if ($db_user instanceof WP_User) {
 					if ($db_user->get('restful_sso_user')) {
-						$data = $this->get_userdata_from_sso_credentials($username, $password);
-						// This indicates that the password has been correctly submitted
-						// but is different from the WordPress password, so we need to update 
-						// the WP password
-						if (empty($data[$error_property])) {
-							wp_set_password($password, $db_user->ID);
-							$user = $db_user;
-						}
+						$data = $this->_getAuthInterface()->authenticateUser($username, $password);
 					}
 
 				} else {
-					$data = $this->get_userdata_from_sso_credentials($username, $password);
-					if (empty($data[$error_property])) {
+					$data = $this->_getAuthInterface()->authenticateUser($username, $password);
+					if (!$data instanceof WP_Error) {
 						// Let's create a user in the WordPress system corresponding to the user.
-						$user_id = wp_create_user($username, $password, $data[$email_property]);
+						$arbitrary_password = sha1(uniqid(microtime()));
+						$user_id = wp_create_user($username, $arbitrary_password, $data[$email_property]);
 						update_user_meta($user_id, 'first_name', $data[$first_name_property]);
 						update_user_meta($user_id, 'last_name', $data[$last_name_property]);
 						update_user_meta($user_id, 'restful_sso_user', true);
@@ -351,12 +376,11 @@ if (! class_exists('RestfulSingleSignOnPlugin')) {
 						$user = get_user_by('id', $user_id);
 						if ($user instanceof WP_User) {
 							$username = $user->user_email;
-							$result = $this->request_password_reset($username);
-							if (empty($result['error'])) {
-								$phpmailer = new RestfulSingleSignOn_DummyMailer(false, true);
+							$result = $this->_getAuthInterface()->requestPasswordReset($username);
+							if ($result instanceof WP_Error) {
+								$phpmailer = new RestfulSingleSignOn_DummyMailer(false, $result);
 							} else {
-								$error = new WP_Error('password_reset_problem', $result['error']);
-								$phpmailer = new RestfulSingleSignOn_DummyMailer(false, $error);
+								$phpmailer = new RestfulSingleSignOn_DummyMailer(false, true);
 							}
 						}
 					}
@@ -364,75 +388,22 @@ if (! class_exists('RestfulSingleSignOnPlugin')) {
 			}
 			return $allowed;
 		}
-
-		/**
-		 * Request a password reset.
-		 *
-		 * @param string $username The username for which to request a password reset.
-		 */
-		public function request_password_reset($username) 
-		{
-			$data = null;
-			$endpoint = get_option('restful-single-signon-auth-password-reset-endpoint');
-			$resource_name = get_option('restful-single-signon-auth-resource');
-			$resource_username = get_option('restful-single-signon-auth-resource-username');
-			if (!empty($endpoint)) {
-				$result = wp_remote_post(
-					$endpoint, 
-					array(
-						'headers' => array('Accept' => 'application/json', 'Content-type' => 'application/json'),
-						'body' => json_encode(array(
-							$resource_name => array(
-								$resource_username => $username,
-							),
-						)),
-					)
-				);
-				$data = empty($result['body']) ? null : json_decode($result['body'], true);
-			}
-			return $data;
-		}
-
-		/**
-		 * Get the user data for the user, given her credentials.
-		 *
-		 * @param [String] $username The username of the user.
-		 * @param [String] $password The password of the user.
-		 *
-		 * @return mixed The array of user data or null if none found.
-		 */
-		protected function get_userdata_from_sso_credentials($username, $password)
-		{
-			$data = null;
-			$endpoint = get_option('restful-single-signon-auth-endpoint');
-			$resource_name = get_option('restful-single-signon-auth-resource');
-			$resource_username = get_option('restful-single-signon-auth-resource-username');
-			$resource_password = get_option('restful-single-signon-auth-resource-password');
-			if (!empty($endpoint)) {
-				$result = wp_remote_post(
-					$endpoint, 
-					array(
-						'headers' => array('Accept' => 'application/json', 'Content-type' => 'application/json'),
-						'body' => json_encode(array(
-							$resource_name => array(
-								$resource_username => $username,
-								$resource_password => $password,
-							),
-						)),
-					)
-				);
-				$data = empty($result['body']) ? null : json_decode($result['body'], true);
-			}
-			return $data;
-		}
 	}
 
+	/**
+	 * Initialize the plugin into a global.
+	 */
 	function initialize_restful_single_sign_on_plugin()
 	{
 		global $restful_single_sign_on_plugin;
 		$restful_single_sign_on_plugin = new RestfulSingleSignOnPlugin();
 	}
 
+	/**
+	 * Autoload classes used in this plugin.
+	 *
+	 * @param string $class The unknown class that PHP is looking for.
+	 */
 	function single_sign_on_plugin_autoloader($class = '')
 	{
 		if (preg_match('/^restfulsinglesignon_(.*)/i',$class, $matches) && $matches[1]) {
