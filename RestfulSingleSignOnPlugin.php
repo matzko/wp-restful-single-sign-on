@@ -60,14 +60,14 @@ if (! class_exists('RestfulSingleSignOnPlugin')) {
 		{
 			add_settings_section(
 				'restful-single-signon-auth-settings-section-id',
-				__( 'Endpoint Settings', 'restful-single-sign-on' ),
+				__('Endpoint Settings', 'restful-single-sign-on' ),
 				array($this, 'print_settings_section'),
 				'restful-single-signon-auth-settings-page'
 			);
 
 			add_settings_field(
 				'restful-single-signon-auth-endpoint',
-				__( 'Authentication Endpoint', 'restful-single-sign-on' ),
+				__('Authentication Endpoint', 'restful-single-sign-on' ),
 				array($this, 'print_setting_auth_endpoint'),
 				'restful-single-signon-auth-settings-page',
 				'restful-single-signon-auth-settings-section-id'
@@ -75,7 +75,7 @@ if (! class_exists('RestfulSingleSignOnPlugin')) {
 
 			add_settings_field(
 				'restful-single-signon-auth-password-reset-endpoint',
-				__( 'Password Reset Endpoint', 'restful-single-sign-on' ),
+				__('Password Reset Endpoint', 'restful-single-sign-on' ),
 				array($this, 'print_setting_auth_password_reset_endpoint'),
 				'restful-single-signon-auth-settings-page',
 				'restful-single-signon-auth-settings-section-id'
@@ -83,7 +83,7 @@ if (! class_exists('RestfulSingleSignOnPlugin')) {
 
 			add_settings_field(
 				'restful-single-signon-auth-resource',
-				__( 'Authenticated Resource', 'restful-single-sign-on' ),
+				__('Authenticated Resource', 'restful-single-sign-on' ),
 				array($this, 'print_setting_auth_resource'),
 				'restful-single-signon-auth-settings-page',
 				'restful-single-signon-auth-settings-section-id'
@@ -91,7 +91,7 @@ if (! class_exists('RestfulSingleSignOnPlugin')) {
 
 			add_settings_field(
 				'restful-single-signon-auth-resource-username',
-				__( 'Resource Username', 'restful-single-sign-on' ),
+				__('Resource Username', 'restful-single-sign-on' ),
 				array($this, 'print_setting_auth_resource_username'),
 				'restful-single-signon-auth-settings-page',
 				'restful-single-signon-auth-settings-section-id'
@@ -99,7 +99,7 @@ if (! class_exists('RestfulSingleSignOnPlugin')) {
 
 			add_settings_field(
 				'restful-single-signon-auth-resource-password',
-				__( 'Resource Password', 'restful-single-sign-on' ),
+				__('Resource Password', 'restful-single-sign-on' ),
 				array($this, 'print_setting_auth_resource_password'),
 				'restful-single-signon-auth-settings-page',
 				'restful-single-signon-auth-settings-section-id'
@@ -107,7 +107,7 @@ if (! class_exists('RestfulSingleSignOnPlugin')) {
 
 			add_settings_field(
 				'restful-single-signon-auth-resource-email',
-				__( 'Resource Email', 'restful-single-sign-on' ),
+				__('Resource Email', 'restful-single-sign-on' ),
 				array($this, 'print_setting_auth_resource_email'),
 				'restful-single-signon-auth-settings-page',
 				'restful-single-signon-auth-settings-section-id'
@@ -115,7 +115,7 @@ if (! class_exists('RestfulSingleSignOnPlugin')) {
 
 			add_settings_field(
 				'restful-single-signon-auth-resource-first_name',
-				__( 'Resource First Name', 'restful-single-sign-on'),
+				__('Resource First Name', 'restful-single-sign-on'),
 				array($this, 'print_setting_auth_resource_first_name'),
 				'restful-single-signon-auth-settings-page',
 				'restful-single-signon-auth-settings-section-id'
@@ -123,7 +123,7 @@ if (! class_exists('RestfulSingleSignOnPlugin')) {
 
 			add_settings_field(
 				'restful-single-signon-auth-resource-last_name',
-				__( 'Resource Last Name', 'restful-single-sign-on'),
+				__('Resource Last Name', 'restful-single-sign-on'),
 				array($this, 'print_setting_auth_resource_last_name'),
 				'restful-single-signon-auth-settings-page',
 				'restful-single-signon-auth-settings-section-id'
@@ -131,7 +131,7 @@ if (! class_exists('RestfulSingleSignOnPlugin')) {
 
 			add_settings_field(
 				'restful-single-signon-auth-error-property',
-				__( 'Response Error Property', 'restful-single-sign-on'),
+				__('Response Error Property', 'restful-single-sign-on'),
 				array($this, 'print_setting_auth_error_property'),
 				'restful-single-signon-auth-settings-page',
 				'restful-single-signon-auth-settings-section-id'
@@ -332,6 +332,9 @@ if (! class_exists('RestfulSingleSignOnPlugin')) {
 				if ($db_user instanceof WP_User) {
 					if ($db_user->get('restful_sso_user')) {
 						$data = $this->_getAuthInterface()->authenticateUser($username, $password);
+						if (!$data instanceof WP_Error) {
+							$user = $db_user;
+						}
 					}
 
 				} else {
