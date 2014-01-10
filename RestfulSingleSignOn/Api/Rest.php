@@ -87,12 +87,7 @@ implements RestfulSingleSignOn_Api_AuthInterface
 				$this->_resource_password => $password,
 			),
 		));
-		$data = empty($response['body']) ? null : json_decode($response['body'], true);
-		if (empty($data['error'])) {
-			$result = $data;
-		} else {
-			$result = new WP_Error('restful_authenticate_error', $data['error']);
-		}
+		$result = RestfulSingleSignOn_HttpResponse::buildFromWordPressResponse($response);
 		return $result;
 	}
 
@@ -110,12 +105,7 @@ implements RestfulSingleSignOn_Api_AuthInterface
 				$this->_resource_username => $username,
 			),
 		));
-		$data = empty($response['body']) ? null : json_decode($response['body'], true);
-		if (empty($data['error'])) {
-			$result = $data;
-		} else {
-			$result = new WP_Error('restful_password_reset_error', $data['error']);
-		}
+		$result = RestfulSingleSignOn_HttpResponse::buildFromWordPressResponse($response);
 		return $result;
 	}
 }

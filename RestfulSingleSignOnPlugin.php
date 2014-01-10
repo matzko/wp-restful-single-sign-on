@@ -138,6 +138,22 @@ if (! class_exists('RestfulSingleSignOnPlugin')) {
 				'restful-single-signon-auth-settings-section-id'
 			);
 
+			add_settings_field(
+				'restful-single-signon-auth-cookies-to-set',
+				__('Cookies to Set', 'restful-single-sign-on'),
+				array($this, 'print_setting_auth_cookies_to_set'),
+				'restful-single-signon-auth-settings-page',
+				'restful-single-signon-auth-settings-section-id'
+			);
+
+			add_settings_field(
+				'restful-single-signon-auth-cookies-domain',
+				__('Cookies Domain', 'restful-single-sign-on'),
+				array($this, 'print_setting_auth_cookies_domain'),
+				'restful-single-signon-auth-settings-page',
+				'restful-single-signon-auth-settings-section-id'
+			);
+
 			register_setting('restful-single-signon-auth-options-group', 'restful-single-signon-auth-endpoint');
 			register_setting('restful-single-signon-auth-options-group', 'restful-single-signon-auth-password-reset-endpoint');
 			register_setting('restful-single-signon-auth-options-group', 'restful-single-signon-auth-resource');
@@ -147,6 +163,8 @@ if (! class_exists('RestfulSingleSignOnPlugin')) {
 			register_setting('restful-single-signon-auth-options-group', 'restful-single-signon-auth-resource-first_name');
 			register_setting('restful-single-signon-auth-options-group', 'restful-single-signon-auth-resource-last_name');
 			register_setting('restful-single-signon-auth-options-group', 'restful-single-signon-auth-error-property');
+			register_setting('restful-single-signon-auth-options-group', 'restful-single-signon-auth-cookies-to-set');
+			register_setting('restful-single-signon-auth-options-group', 'restful-single-signon-auth-cookies-domain');
 		}
 
 		/**
@@ -291,6 +309,36 @@ if (! class_exists('RestfulSingleSignOnPlugin')) {
 		}
 
 		/**
+		 * Print the markup for the SSO auth cookies-to-set option.
+		 */
+		public function print_setting_auth_cookies_to_set()
+		{
+			$setting = get_option('restful-single-signon-auth-cookies-to-set');
+			?>
+			<label>
+				<input type="text" name="restful-single-signon-auth-cookies-to-set" value="<?php echo esc_attr( $setting ); ?>" />
+				<span><?php printf(__('The name(s) of any cookies to set from the response (e.g. %s), separated by commas.', 'restful-single-sign-on' ), '<code>_session_id</code>') ?></span>
+			</label>
+			<?php
+		}
+
+		/**
+		 * Print the markup for the SSO auth cookies domain option.
+		 */
+		public function print_setting_auth_cookies_domain()
+		{
+			$setting = get_option('restful-single-signon-auth-cookies-domain');
+			$parsed_home_url = parse_url(home_url());
+			$domain = empty($parsed_home_url['host']) ? '' : $parsed_home_url['host'];
+			?>
+			<label>
+				<input type="text" name="restful-single-signon-auth-cookies-domain" value="<?php echo esc_attr( $setting ); ?>" />
+				<span><?php printf(__('The domain to set the cookies on from the response, e.g. %s', 'restful-single-sign-on' ), "<code>$domain</code>") ?></span>
+			</label>
+			<?php
+		}
+
+		/**
 		 * Print the settings section.
 		 */
 		public function print_settings_section()
@@ -328,18 +376,25 @@ if (! class_exists('RestfulSingleSignOnPlugin')) {
 				$first_name_property = get_option('restful-single-signon-auth-resource-first_name');
 				$last_name_property = get_option('restful-single-signon-auth-resource-last_name');
 				$email_property = get_option('restful-single-signon-auth-resource-email');
+				$cookies_to_set = array_map('trim', explode(',', get_option('restful-single-signon-auth-cookies-to-set')));
+				$cookie_domain = get_option('restful-single-signon-auth-cookies-domain');
 
 				// Already a corresponding WordPress user
 				if ($db_user instanceof WP_User) {
 					if ($db_user->get('restful_sso_user')) {
-						$data = $this->_getAuthInterface()->authenticateUser($username, $password);
+						$resp = $this->_getAuthInterface()->authenticateUser($username, $password);
+						$data = $resp->getParsedBody();
 						if (!$data instanceof WP_Error) {
 							$user = $db_user;
+							if (0 < count($cookies_to_set)) {
+								$this->_set_cookies_from_response($cookies_to_set, $cookie_domain, $resp);
+							}
 						}
 					}
 
 				} else {
-					$data = $this->_getAuthInterface()->authenticateUser($username, $password);
+					$resp = $this->_getAuthInterface()->authenticateUser($username, $password);
+					$data = $resp->getParsedBody();
 					if (!$data instanceof WP_Error) {
 						// Let's create a user in the WordPress system corresponding to the user.
 						$arbitrary_password = sha1(uniqid(microtime()));
@@ -349,6 +404,9 @@ if (! class_exists('RestfulSingleSignOnPlugin')) {
 						update_user_meta($user_id, 'restful_sso_user', true);
 
 						$user = get_user_by('id', $user_id);
+						if (0 < count($cookies_to_set)) {
+							$this->_set_cookies_from_response($cookies_to_set, $cookie_domain, $resp);
+						}
 					}
 				}
 			}
@@ -380,7 +438,8 @@ if (! class_exists('RestfulSingleSignOnPlugin')) {
 						$user = get_user_by('id', $user_id);
 						if ($user instanceof WP_User) {
 							$username = $user->user_email;
-							$result = $this->_getAuthInterface()->requestPasswordReset($username);
+							$resp = $this->_getAuthInterface()->requestPasswordReset($username);
+							$result = $resp->getParsedBody();
 							if ($result instanceof WP_Error) {
 								$phpmailer = new RestfulSingleSignOn_DummyMailer(false, $result);
 							} else {
@@ -409,6 +468,28 @@ if (! class_exists('RestfulSingleSignOnPlugin')) {
 				$allowed = ! $is_restful_user;
 			}
 			return $allowed;
+		}
+
+		/**
+		 * Set the cookies named in the $cookies value, from the "Set-Cookie" response header.
+		 * Used to share authentication tokens cross subdomains.
+		 *
+		 * @param array                            $cookies  The names of the cookies to set.
+		 * @param string                           $domain   The domain on which to set the cookies.
+		 * @param RestfulSingleSignOn_HttpResponse $response The response from which to parse the cookies.
+		 */
+		protected function _set_cookies_from_response($cookies = array(), $domain = '', $response = null)
+		{
+			if ($response instanceof RestfulSingleSignOn_HttpResponse && !empty($domain)) {
+				foreach($cookies as $cookie_name) {
+					if (!empty($cookie_name)) {
+						$cookie = $response->getCookie($cookie_name);
+						if ($cookie instanceof WP_Http_Cookie) {
+							setcookie($cookie_name, $cookie->value, 0, '/', $domain, false, true);
+						}
+					}
+				}
+			}
 		}
 	}
 

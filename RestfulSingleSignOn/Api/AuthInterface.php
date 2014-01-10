@@ -8,7 +8,7 @@ interface RestfulSingleSignOn_Api_AuthInterface
 	 * @param string $username The username of the user to authenticate.
 	 * @param string $password The password of the user to authenticate.
 	 *
-	 * @return array|WP_Error The array of user properties if successful; error otherwise.
+	 * @return RestfulSingleSignOn_HttpResponse The HTTP response.
 	 */
 	public function authenticateUser($username, $password);
 
@@ -17,7 +17,7 @@ interface RestfulSingleSignOn_Api_AuthInterface
 	 *
 	 * @param string $username The username of the user for whom to reset the password.
 	 *
-	 * @return array|WP_Error The array of user properties if successful; error otherwise.
+	 * @return RestfulSingleSignOn_HttpResponse The HTTP response.
 	 */
 	public function requestPasswordReset($username);
 }
