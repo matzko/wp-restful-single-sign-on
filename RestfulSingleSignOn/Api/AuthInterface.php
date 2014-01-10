@@ -20,4 +20,13 @@ interface RestfulSingleSignOn_Api_AuthInterface
 	 * @return RestfulSingleSignOn_HttpResponse The HTTP response.
 	 */
 	public function requestPasswordReset($username);
+
+	/**
+	 * Request current user info.
+	 *
+	 * @param string $session_id The Id of the session to send for authentication.
+	 *
+	 * @return RestfulSingleSignOn_HttpResponse The HTTP response.
+	 */
+	public function getCurrentUserInfo($session_id);
 }

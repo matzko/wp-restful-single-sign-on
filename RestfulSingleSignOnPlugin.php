@@ -25,6 +25,7 @@ if (! class_exists('RestfulSingleSignOnPlugin')) {
 		{
 			add_action('admin_init', array($this, 'event_admin_init'));
 			add_action('admin_menu', array($this, 'event_admin_menu'));
+			add_action('init', array($this, 'set_up_user'), 1);
 			add_filter('allow_password_reset', array($this,'can_user_reset_password'), 30, 2);
 			add_filter('authenticate', array($this, 'wp_authenticate_username_password'), 25, 3);
 			add_filter('show_password_fields', array($this,'can_user_change_password'), 30, 2);
@@ -47,7 +48,9 @@ if (! class_exists('RestfulSingleSignOnPlugin')) {
 					get_option('restful-single-signon-auth-resource-email'),
 					get_option('restful-single-signon-auth-resource-first_name'),
 					get_option('restful-single-signon-auth-resource-last_name'),
-					get_option('restful-single-signon-auth-error-property')
+					get_option('restful-single-signon-auth-error-property'),
+					get_option('restful-single-signon-auth-cookie-to-set'),
+					get_option('restful-single-signon-auth-get-current-user')
 				);
 				$this->_auth_interface = apply_filters('restful_single_sign_on_auth_interface', $interface);
 			}
@@ -139,17 +142,25 @@ if (! class_exists('RestfulSingleSignOnPlugin')) {
 			);
 
 			add_settings_field(
-				'restful-single-signon-auth-cookies-to-set',
-				__('Cookies to Set', 'restful-single-sign-on'),
+				'restful-single-signon-auth-cookie-to-set',
+				__('Authorization Cookie', 'restful-single-sign-on'),
 				array($this, 'print_setting_auth_cookies_to_set'),
 				'restful-single-signon-auth-settings-page',
 				'restful-single-signon-auth-settings-section-id'
 			);
 
 			add_settings_field(
-				'restful-single-signon-auth-cookies-domain',
-				__('Cookies Domain', 'restful-single-sign-on'),
+				'restful-single-signon-auth-cookie-domain',
+				__('Cookie Domain', 'restful-single-sign-on'),
 				array($this, 'print_setting_auth_cookies_domain'),
+				'restful-single-signon-auth-settings-page',
+				'restful-single-signon-auth-settings-section-id'
+			);
+
+			add_settings_field(
+				'restful-single-signon-auth-get-current-user',
+				__('Current User Info URL', 'restful-single-sign-on'),
+				array($this, 'print_setting_auth_current_user_info'),
 				'restful-single-signon-auth-settings-page',
 				'restful-single-signon-auth-settings-section-id'
 			);
@@ -163,8 +174,9 @@ if (! class_exists('RestfulSingleSignOnPlugin')) {
 			register_setting('restful-single-signon-auth-options-group', 'restful-single-signon-auth-resource-first_name');
 			register_setting('restful-single-signon-auth-options-group', 'restful-single-signon-auth-resource-last_name');
 			register_setting('restful-single-signon-auth-options-group', 'restful-single-signon-auth-error-property');
-			register_setting('restful-single-signon-auth-options-group', 'restful-single-signon-auth-cookies-to-set');
-			register_setting('restful-single-signon-auth-options-group', 'restful-single-signon-auth-cookies-domain');
+			register_setting('restful-single-signon-auth-options-group', 'restful-single-signon-auth-cookie-to-set');
+			register_setting('restful-single-signon-auth-options-group', 'restful-single-signon-auth-cookie-domain');
+			register_setting('restful-single-signon-auth-options-group', 'restful-single-signon-auth-get-current-user');
 		}
 
 		/**
@@ -180,6 +192,36 @@ if (! class_exists('RestfulSingleSignOnPlugin')) {
 				'restful-single-sign-on-settings',
 				array($this, 'print_settings')
 			);
+		}
+
+		/**
+		 * If there is enough info to do so, authenticate to the identity provider with the known auth cookie value.
+		 */
+		public function set_up_user()
+		{
+			global $current_user;
+			$user = wp_get_current_user();
+			if (empty($user->ID)) {
+				$auth_cookie_name = get_option('restful-single-signon-auth-cookie-to-set');
+				if (!empty($auth_cookie_name) && !empty($_COOKIE[$auth_cookie_name])) {
+					$email_property = get_option('restful-single-signon-auth-resource-email');
+					$current_user_endpoint = get_option('restful-single-signon-auth-get-current-user');
+					if (!empty($email_property) && !empty($current_user_endpoint)) {
+						$resp = $this->_getAuthInterface()->getCurrentUserInfo($_COOKIE[$auth_cookie_name]);
+						$data = $resp->getParsedBody();
+						if (
+							(!$data instanceof WP_Error)
+							&& !empty($data[$email_property])
+						) {
+							$found_user = get_user_by('email', $data[$email_property]);
+							if (!empty($found_user->ID)) {
+								$current_user = $found_user;
+								wp_set_current_user($found_user->ID);
+							}
+						}
+					}
+				}
+			}
 		}
 
 		/**
@@ -309,31 +351,45 @@ if (! class_exists('RestfulSingleSignOnPlugin')) {
 		}
 
 		/**
-		 * Print the markup for the SSO auth cookies-to-set option.
+		 * Print the markup for the SSO auth cookie-to-set option.
 		 */
 		public function print_setting_auth_cookies_to_set()
 		{
-			$setting = get_option('restful-single-signon-auth-cookies-to-set');
+			$setting = get_option('restful-single-signon-auth-cookie-to-set');
 			?>
 			<label>
-				<input type="text" name="restful-single-signon-auth-cookies-to-set" value="<?php echo esc_attr( $setting ); ?>" />
-				<span><?php printf(__('The name(s) of any cookies to set from the response (e.g. %s), separated by commas.', 'restful-single-sign-on' ), '<code>_session_id</code>') ?></span>
+				<input type="text" name="restful-single-signon-auth-cookie-to-set" value="<?php echo esc_attr( $setting ); ?>" />
+				<span><?php printf(__('The name of the auth cookie to set from the response (e.g. %s).', 'restful-single-sign-on' ), '<code>_session_id</code>') ?></span>
 			</label>
 			<?php
 		}
 
 		/**
-		 * Print the markup for the SSO auth cookies domain option.
+		 * Print the markup for the SSO auth cookie domain option.
 		 */
 		public function print_setting_auth_cookies_domain()
 		{
-			$setting = get_option('restful-single-signon-auth-cookies-domain');
+			$setting = get_option('restful-single-signon-auth-cookie-domain');
 			$parsed_home_url = parse_url(home_url());
 			$domain = empty($parsed_home_url['host']) ? '' : $parsed_home_url['host'];
 			?>
 			<label>
-				<input type="text" name="restful-single-signon-auth-cookies-domain" value="<?php echo esc_attr( $setting ); ?>" />
-				<span><?php printf(__('The domain to set the cookies on from the response, e.g. %s', 'restful-single-sign-on' ), "<code>$domain</code>") ?></span>
+				<input type="text" name="restful-single-signon-auth-cookie-domain" value="<?php echo esc_attr( $setting ); ?>" />
+				<span><?php printf(__('The domain to set the cookie on from the response, e.g. %s', 'restful-single-sign-on' ), "<code>$domain</code>") ?></span>
+			</label>
+			<?php
+		}
+
+		/**
+		 * Print the markup for the SSO current user info.
+		 */
+		public function print_setting_auth_current_user_info()
+		{
+			$setting = get_option('restful-single-signon-auth-get-current-user');
+			?>
+			<label>
+				<input type="text" name="restful-single-signon-auth-get-current-user" value="<?php echo esc_attr( $setting ); ?>" />
+				<span><?php _e('The URL which will return the email of the current user, when making a request with the authorization cookie set.', 'restful-single-sign-on' ) ?></span>
 			</label>
 			<?php
 		}
@@ -376,8 +432,8 @@ if (! class_exists('RestfulSingleSignOnPlugin')) {
 				$first_name_property = get_option('restful-single-signon-auth-resource-first_name');
 				$last_name_property = get_option('restful-single-signon-auth-resource-last_name');
 				$email_property = get_option('restful-single-signon-auth-resource-email');
-				$cookies_to_set = array_map('trim', explode(',', get_option('restful-single-signon-auth-cookies-to-set')));
-				$cookie_domain = get_option('restful-single-signon-auth-cookies-domain');
+				$cookies_to_set = array_map('trim', explode(',', get_option('restful-single-signon-auth-cookie-to-set')));
+				$cookie_domain = get_option('restful-single-signon-auth-cookie-domain');
 
 				// Already a corresponding WordPress user
 				if ($db_user instanceof WP_User) {
