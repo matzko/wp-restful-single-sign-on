@@ -4,7 +4,7 @@ Donate link: https://github.com/matzko/wp-restful-single-sign-on
 Tags: Rails, SSO, REST, authentication, auth
 Requires at least: 3.8
 Tested up to: 3.8
-Stable tag: 1.0.1
+Stable tag: 1.0.2
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,9 @@ end
 This returns only the email, first name, and last name `User` properties.
 
 == Changelog ==
+
+= 1.0.2 = 
+Handle erroroneous requests with grace.
 
 = 1.0 =
 Initial release of plugin
