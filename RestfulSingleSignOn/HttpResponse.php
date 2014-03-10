@@ -228,7 +228,7 @@ class RestfulSingleSignOn_HttpResponse
 	public static function buildFromWordPressResponse($wp_response)
 	{
 		$resp = null;
-		if (!empty($wp_response)) {
+		if (!empty($wp_response) && (!$wp_response instanceof WP_Error)) {
 			$body = isset($wp_response['body']) ? $wp_response['body'] : '';
 			$resp = new RestfulSingleSignOn_HttpResponse($body);
 			if (!empty($wp_response['headers'])) {

@@ -208,15 +208,17 @@ if (! class_exists('RestfulSingleSignOnPlugin')) {
 					$current_user_endpoint = get_option('restful-single-signon-auth-get-current-user');
 					if (!empty($email_property) && !empty($current_user_endpoint)) {
 						$resp = $this->_getAuthInterface()->getCurrentUserInfo($_COOKIE[$auth_cookie_name]);
-						$data = $resp->getParsedBody();
-						if (
-							(!$data instanceof WP_Error)
-							&& !empty($data[$email_property])
-						) {
-							$found_user = get_user_by('email', $data[$email_property]);
-							if (!empty($found_user->ID)) {
-								$current_user = $found_user;
-								wp_set_current_user($found_user->ID);
+						if (!is_null($resp)) {
+							$data = $resp->getParsedBody();
+							if (
+								(!$data instanceof WP_Error)
+								&& !empty($data[$email_property])
+							) {
+								$found_user = get_user_by('email', $data[$email_property]);
+								if (!empty($found_user->ID)) {
+									$current_user = $found_user;
+									wp_set_current_user($found_user->ID);
+								}
 							}
 						}
 					}
@@ -439,29 +441,33 @@ if (! class_exists('RestfulSingleSignOnPlugin')) {
 				if ($db_user instanceof WP_User) {
 					if ($db_user->get('restful_sso_user')) {
 						$resp = $this->_getAuthInterface()->authenticateUser($username, $password);
-						$data = $resp->getParsedBody();
-						if (!$data instanceof WP_Error) {
-							$user = $db_user;
-							if (0 < count($cookies_to_set)) {
-								$this->_set_cookies_from_response($cookies_to_set, $cookie_domain, $resp);
+						if (!is_null($resp)) {
+							$data = $resp->getParsedBody();
+							if (!$data instanceof WP_Error) {
+								$user = $db_user;
+								if (0 < count($cookies_to_set)) {
+									$this->_set_cookies_from_response($cookies_to_set, $cookie_domain, $resp);
+								}
 							}
 						}
 					}
 
 				} else {
 					$resp = $this->_getAuthInterface()->authenticateUser($username, $password);
-					$data = $resp->getParsedBody();
-					if (!$data instanceof WP_Error) {
-						// Let's create a user in the WordPress system corresponding to the user.
-						$arbitrary_password = sha1(uniqid(microtime()));
-						$user_id = wp_create_user($username, $arbitrary_password, $data[$email_property]);
-						update_user_meta($user_id, 'first_name', $data[$first_name_property]);
-						update_user_meta($user_id, 'last_name', $data[$last_name_property]);
-						update_user_meta($user_id, 'restful_sso_user', true);
+					if (!is_null($resp)) {
+						$data = $resp->getParsedBody();
+						if (!$data instanceof WP_Error) {
+							// Let's create a user in the WordPress system corresponding to the user.
+							$arbitrary_password = sha1(uniqid(microtime()));
+							$user_id = wp_create_user($username, $arbitrary_password, $data[$email_property]);
+							update_user_meta($user_id, 'first_name', $data[$first_name_property]);
+							update_user_meta($user_id, 'last_name', $data[$last_name_property]);
+							update_user_meta($user_id, 'restful_sso_user', true);
 
-						$user = get_user_by('id', $user_id);
-						if (0 < count($cookies_to_set)) {
-							$this->_set_cookies_from_response($cookies_to_set, $cookie_domain, $resp);
+							$user = get_user_by('id', $user_id);
+							if (0 < count($cookies_to_set)) {
+								$this->_set_cookies_from_response($cookies_to_set, $cookie_domain, $resp);
+							}
 						}
 					}
 				}
@@ -495,11 +501,13 @@ if (! class_exists('RestfulSingleSignOnPlugin')) {
 						if ($user instanceof WP_User) {
 							$username = $user->user_email;
 							$resp = $this->_getAuthInterface()->requestPasswordReset($username);
-							$result = $resp->getParsedBody();
-							if ($result instanceof WP_Error) {
-								$phpmailer = new RestfulSingleSignOn_DummyMailer(false, $result);
-							} else {
-								$phpmailer = new RestfulSingleSignOn_DummyMailer(false, true);
+							if (!is_null($resp)) {
+								$result = $resp->getParsedBody();
+								if ($result instanceof WP_Error) {
+									$phpmailer = new RestfulSingleSignOn_DummyMailer(false, $result);
+								} else {
+									$phpmailer = new RestfulSingleSignOn_DummyMailer(false, true);
+								}
 							}
 						}
 					}
