@@ -5,7 +5,7 @@ Plugin URI: https://github.com/matzko/wp-restful-single-sign-on
 Description: Single Sign-On (SSO) with a RESTful identity provider. 
 Author: Austin Matzko
 Author URI: https://austinmatzko.com
-Version: 1.0
+Version: 1.1
 Text Domain: restful-single-sign-on
 */
 
@@ -445,6 +445,7 @@ if (! class_exists('RestfulSingleSignOnPlugin')) {
 							$data = $resp->getParsedBody();
 							if (!$data instanceof WP_Error) {
 								$user = $db_user;
+								$data = apply_filters('restful_single_sign_on_response_data', $user->ID, $data);
 								if (0 < count($cookies_to_set)) {
 									$this->_set_cookies_from_response($cookies_to_set, $cookie_domain, $resp);
 								}
@@ -460,6 +461,7 @@ if (! class_exists('RestfulSingleSignOnPlugin')) {
 							// Let's create a user in the WordPress system corresponding to the user.
 							$arbitrary_password = sha1(uniqid(microtime()));
 							$user_id = wp_create_user($username, $arbitrary_password, $data[$email_property]);
+							$data = apply_filters('restful_single_sign_on_response_data', $user_id, $data);
 							update_user_meta($user_id, 'first_name', $data[$first_name_property]);
 							update_user_meta($user_id, 'last_name', $data[$last_name_property]);
 							update_user_meta($user_id, 'restful_sso_user', true);
