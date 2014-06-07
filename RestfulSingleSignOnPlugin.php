@@ -29,6 +29,7 @@ if (! class_exists('RestfulSingleSignOnPlugin')) {
 			add_filter('allow_password_reset', array($this,'can_user_reset_password'), 30, 2);
 			add_filter('authenticate', array($this, 'wp_authenticate_username_password'), 25, 3);
 			add_filter('show_password_fields', array($this,'can_user_change_password'), 30, 2);
+      add_action('wp_logout', array($this, 'clear_sso_cookies'));
 		}
 
 		/**
@@ -483,6 +484,17 @@ if (! class_exists('RestfulSingleSignOnPlugin')) {
 			}
 			return $user;
 		}
+
+		public function clear_sso_cookies()
+		{
+      $cookies_to_clear = array_map('trim', explode(',', get_option('restful-single-signon-auth-cookie-to-set')));
+      $cookie_domain = get_option('restful-single-signon-auth-cookie-domain');
+      foreach($cookies_to_clear as $cookie_name) {
+        if (!empty($cookie_name)) {
+          setcookie($cookie_name, null, 0, '/', $cookie_domain, false, true);
+        }
+      }
+	  }
 
 		/**
 		 * A callback filter to determine whether the user is allowed to reset
