@@ -460,10 +460,17 @@ if (! class_exists('RestfulSingleSignOnPlugin')) {
 						if (!$data instanceof WP_Error) {
 							// Let's create a user in the WordPress system corresponding to the user.
 							$arbitrary_password = sha1(uniqid(microtime()));
-							$user_id = wp_create_user($username, $arbitrary_password, $data[$email_property]);
+
 							$data = apply_filters('restful_single_sign_on_response_data', $user_id, $data);
-							update_user_meta($user_id, 'first_name', $data[$first_name_property]);
-							update_user_meta($user_id, 'last_name', $data[$last_name_property]);
+              $new_userdata = array (
+                user_login => $username,
+                user_pass => $arbitrary_password,
+                first_name => $data[$first_name_property],
+                last_name => $data[$last_name_property],
+                user_email => $data[$email_property]
+              );
+
+							$user_id = wp_insert_user($new_userdata);
 							update_user_meta($user_id, 'restful_sso_user', true);
 
 							$user = get_user_by('id', $user_id);
