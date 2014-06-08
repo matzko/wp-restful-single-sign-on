@@ -462,7 +462,8 @@ if (! class_exists('RestfulSingleSignOnPlugin')) {
 							// Let's create a user in the WordPress system corresponding to the user.
 							$arbitrary_password = sha1(uniqid(microtime()));
 
-							$data = apply_filters('restful_single_sign_on_response_data', $user_id, $data);
+							// $data = apply_filters('restful_single_sign_on_response_data', $user_id, $data);
+
               $new_userdata = array (
                 user_login => $username,
                 user_pass => $arbitrary_password,
