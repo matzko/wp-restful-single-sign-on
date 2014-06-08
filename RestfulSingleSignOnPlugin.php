@@ -29,6 +29,7 @@ if (! class_exists('RestfulSingleSignOnPlugin')) {
 			add_filter('allow_password_reset', array($this,'can_user_reset_password'), 30, 2);
 			add_filter('authenticate', array($this, 'wp_authenticate_username_password'), 25, 3);
 			add_filter('show_password_fields', array($this,'can_user_change_password'), 30, 2);
+      add_action('wp_logout', array($this, 'clear_sso_cookies'));
 		}
 
 		/**
@@ -460,10 +461,18 @@ if (! class_exists('RestfulSingleSignOnPlugin')) {
 						if (!$data instanceof WP_Error) {
 							// Let's create a user in the WordPress system corresponding to the user.
 							$arbitrary_password = sha1(uniqid(microtime()));
-							$user_id = wp_create_user($username, $arbitrary_password, $data[$email_property]);
-							$data = apply_filters('restful_single_sign_on_response_data', $user_id, $data);
-							update_user_meta($user_id, 'first_name', $data[$first_name_property]);
-							update_user_meta($user_id, 'last_name', $data[$last_name_property]);
+
+							// $data = apply_filters('restful_single_sign_on_response_data', $user_id, $data);
+
+              $new_userdata = array (
+                user_login => $username,
+                user_pass => $arbitrary_password,
+                first_name => $data[$first_name_property],
+                last_name => $data[$last_name_property],
+                user_email => $data[$email_property]
+              );
+
+							$user_id = wp_insert_user($new_userdata);
 							update_user_meta($user_id, 'restful_sso_user', true);
 
 							$user = get_user_by('id', $user_id);
@@ -476,6 +485,17 @@ if (! class_exists('RestfulSingleSignOnPlugin')) {
 			}
 			return $user;
 		}
+
+		public function clear_sso_cookies()
+		{
+      $cookies_to_clear = array_map('trim', explode(',', get_option('restful-single-signon-auth-cookie-to-set')));
+      $cookie_domain = get_option('restful-single-signon-auth-cookie-domain');
+      foreach($cookies_to_clear as $cookie_name) {
+        if (!empty($cookie_name)) {
+          setcookie($cookie_name, null, 0, '/', $cookie_domain, false, true);
+        }
+      }
+	  }
 
 		/**
 		 * A callback filter to determine whether the user is allowed to reset
